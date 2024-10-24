@@ -1,5 +1,7 @@
 import bcrypt
-from models.user_model import User
+from models.Validation_Result_Model import VALIDATE_SUCCESS, VALIDATE_ERROR
+from models.User_Info_Model import User
+from models.Validation_Result_Model import ValidateResult
 from database.rds_database import rds_database
 import uuid
 from services.token_service import TokenService
@@ -14,7 +16,10 @@ class AuthService:
 
         user = self.db.query_data('users', conditions={'email': email})
         if user:
-            return {'status': 'error', 'message': 'User already exists'}
+            return ValidateResult(
+                status=VALIDATE_ERROR,
+                message='User already exists'
+            )
         
         # Hash the password
         hashed_password = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt())
@@ -28,26 +33,33 @@ class AuthService:
         # Insert the user into the database by converting to a dictionary
         self.db.bulk_insert_data('users', [asdict(new_user)])
 
-        return {'status': 'success', 'user_id': user_id}
+        return ValidateResult(status=VALIDATE_SUCCESS, user_id=user_id)
 
     def login(self, identifier, password):
         # Find user by either email or user_id
         user = self.db.query_data('users', conditions={'email': identifier}) or self.db.query_data('users', conditions={'user_id': identifier})
         
         if not user:
-            return {'status': 'error', 'message': 'User not found'}
+            return ValidateResult(status=VALIDATE_ERROR, message='User not found')
 
         # Extract the user record
+        if len(user)>1:
+            return ValidateResult(status=VALIDATE_ERROR, message='User Info duplicate. Manual inspection needed')
         user = user[0]  
 
         # Check if the password is correct
         if not bcrypt.checkpw(password.encode('utf-8'), user['password'].encode('utf-8')):
-            return {'status': 'error', 'message': 'Invalid password'}
+            return ValidateResult(status=VALIDATE_ERROR, message='Invalid password')
 
         # Generate a JWT token
         token = self.token_service.generate_token(user['user_id'])
 
-        return {'status': 'success', 'token': token}
+        return ValidateResult(
+            status=VALIDATE_SUCCESS,
+            user_id=user['user_id'],
+            message='Token generate success',
+            token=token
+        )
 
     def verify_token(self, token):
         return self.token_service.verify_token(token)

@@ -1,5 +1,7 @@
 import jwt
 import datetime
+from models.Validation_Result_Model import ValidateResult
+from models.Validation_Result_Model import VALIDATE_SUCCESS, VALIDATE_ERROR
 
 class TokenService:
     def __init__(self, secret_key):
@@ -16,8 +18,17 @@ class TokenService:
     def verify_token(self, token):
         try:
             decoded = jwt.decode(token, self.secret_key, algorithms=['HS256'])
-            return {'status': 'success', 'user_id': decoded['user_id']}
+            return ValidateResult(
+                status=VALIDATE_SUCCESS,
+                user_id=decoded['user_id']
+            )
         except jwt.ExpiredSignatureError:
-            return {'status': 'error', 'message': 'Token has expired'}
+            return ValidateResult(
+                status=VALIDATE_ERROR,
+                message='Token has expired'
+            )
         except jwt.InvalidTokenError:
-            return {'status': 'error', 'message': 'Invalid token'}
+            return ValidateResult(
+                status=VALIDATE_ERROR,
+                message='Invalid token'
+            )

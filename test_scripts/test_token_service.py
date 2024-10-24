@@ -1,4 +1,6 @@
 # test_scripts/test_token_service.py
+
+from flask import Flask, json, request, jsonify
 import sys
 import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -7,6 +9,7 @@ import pytest
 import jwt
 import time
 from services.token_service import TokenService
+from models.Validation_Result_Model import VALIDATE_SUCCESS, VALIDATE_ERROR
 
 # Setup a fixture to create a token service instance
 @pytest.fixture
@@ -28,11 +31,14 @@ def test_generate_token(token_service):
 def test_verify_token(token_service):
     user_id = "test_user_id"
     token = token_service.generate_token(user_id)
+    # print(token)
+    # assert False
     
     result = token_service.verify_token(token)
-    
-    assert result['status'] == 'success'
-    assert result['user_id'] == user_id
+    # print(result.get_json_result())
+    # assert False
+    assert result.status == VALIDATE_SUCCESS
+    assert result.user_id == user_id
 
 def test_invalid_token(token_service):
     # Test verification of an invalid token
@@ -40,8 +46,8 @@ def test_invalid_token(token_service):
     
     result = token_service.verify_token(invalid_token)
     
-    assert result['status'] == 'error'
-    assert result['message'] == 'Invalid token'
+    assert result.status == VALIDATE_ERROR
+    assert result.message == 'Invalid token'
 
 # Test verification of an expired token
 def test_expired_token(token_service):
@@ -52,6 +58,6 @@ def test_expired_token(token_service):
     
     time.sleep(2)
     result = token_service.verify_token(token)
-    assert result['status'] == 'error'
-    assert result['message'] == 'Token has expired'
+    assert result.status == VALIDATE_ERROR
+    assert result.message == 'Token has expired'
 

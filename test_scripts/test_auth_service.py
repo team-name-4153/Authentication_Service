@@ -5,7 +5,9 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import pytest
 from unittest.mock import MagicMock, patch
 from services.auth_service import AuthService
-from models.user_model import User
+from models.User_Info_Model import User
+from models.Validation_Result_Model import ValidateResult
+from models.Validation_Result_Model import VALIDATE_SUCCESS, VALIDATE_ERROR
 import bcrypt
 from dataclasses import asdict
 
@@ -30,8 +32,8 @@ def test_register_user(auth_service, test_user):
 
     result = auth_service.register(test_user.email, "password123")
     
-    assert result['status'] == 'success'
-    assert 'user_id' in result
+    assert result.status == VALIDATE_SUCCESS
+    assert not result.user_id == None
     auth_service.db.bulk_insert_data.assert_called_once()
 
 # Test for registration of an existing user
@@ -41,8 +43,8 @@ def test_register_existing_user(auth_service, test_user):
 
     # Try to register the existing user
     result = auth_service.register(test_user.email, "password123")
-    assert result['status'] == 'error'
-    assert result['message'] == 'User already exists'
+    assert result.status == VALIDATE_ERROR
+    assert result.message == 'User already exists'
 
 # Test for successful login
 def test_login_success(auth_service, test_user):
@@ -52,8 +54,9 @@ def test_login_success(auth_service, test_user):
     # Test login with correct password
     result = auth_service.login(identifier=test_user.email, password="password123")
     
-    assert result['status'] == 'success'
-    assert 'token' in result
+    assert result.status == VALIDATE_SUCCESS
+    assert not result.user_id == None
+    assert not result.token == None
 
 # Test for invalid login due to wrong password
 def test_login_wrong_password(auth_service, test_user):
@@ -63,8 +66,8 @@ def test_login_wrong_password(auth_service, test_user):
     # Test login with wrong password
     result = auth_service.login(identifier=test_user.email, password="wrongpassword")
     
-    assert result['status'] == 'error'
-    assert result['message'] == 'Invalid password'
+    assert result.status == VALIDATE_ERROR
+    assert result.message == 'Invalid password'
 
 # Test for login when user doesn't exist
 def test_login_nonexistent_user(auth_service):
@@ -74,17 +77,21 @@ def test_login_nonexistent_user(auth_service):
     # Test login for nonexistent user
     result = auth_service.login(identifier="nonexistent@example.com", password="password123")
     
-    assert result['status'] == 'error'
-    assert result['message'] == 'User not found'
+    assert result.status == VALIDATE_ERROR
+    assert result.message == 'User not found'
 
 # Test token verification
 def test_verify_token(auth_service, test_user):
     # Mock token service to simulate a valid token
-    auth_service.token_service.verify_token = MagicMock(return_value={'status': 'success', 'user_id': test_user.user_id})
+    auth_service.token_service.verify_token = MagicMock(
+        return_value=ValidateResult(
+            status=VALIDATE_SUCCESS,
+            user_id=test_user.user_id
+        ))
 
     # Generate a mock token and verify it
     token = auth_service.token_service.generate_token(test_user.user_id)
     result = auth_service.verify_token(token)
     
-    assert result['status'] == 'success'
-    assert result['user_id'] == test_user.user_id
+    assert result.status == VALIDATE_SUCCESS
+    assert result.user_id == test_user.user_id
