@@ -20,7 +20,8 @@ class TokenService:
             decoded = jwt.decode(token, self.secret_key, algorithms=['HS256'])
             return ValidateResult(
                 status=VALIDATE_SUCCESS,
-                user_id=decoded['user_id']
+                user_id=decoded['user_id'],
+                message='Token valid'
             )
         except jwt.ExpiredSignatureError:
             return ValidateResult(

@@ -13,7 +13,6 @@ class AuthService:
         self.token_service = TokenService(secret_key)
 
     def register(self, email, password):
-
         user = self.db.query_data('users', conditions={'email': email})
         if user:
             return ValidateResult(
@@ -33,7 +32,10 @@ class AuthService:
         # Insert the user into the database by converting to a dictionary
         self.db.bulk_insert_data('users', [asdict(new_user)])
 
-        return ValidateResult(status=VALIDATE_SUCCESS, user_id=user_id)
+        return ValidateResult(
+            status=VALIDATE_SUCCESS, 
+            user_id=user_id,
+            message="Registration successful")
 
     def login(self, identifier, password):
         # Find user by either email or user_id

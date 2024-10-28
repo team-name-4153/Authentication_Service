@@ -31,12 +31,8 @@ def test_generate_token(token_service):
 def test_verify_token(token_service):
     user_id = "test_user_id"
     token = token_service.generate_token(user_id)
-    # print(token)
-    # assert False
     
     result = token_service.verify_token(token)
-    # print(result.get_json_result())
-    # assert False
     assert result.status == VALIDATE_SUCCESS
     assert result.user_id == user_id
 

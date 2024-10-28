@@ -1,4 +1,4 @@
-from flask import Flask, make_response, request, jsonify
+from flask import Flask, json, make_response, request, jsonify
 from flask_cors import CORS
 from services.auth_service import AuthService, VALIDATE_SUCCESS
 from services.token_service import TokenService
@@ -29,36 +29,28 @@ def register():
     password = data.get('password')
 
     if not email or not password:
-        return jsonify({'status': 'error', 'message': 'Email and password required'}), 400
-
-    # Register the user using AuthService
+        return make_response(json.dumps({'status': 'error', 'message': 'Email and password required'}), 400)
     result = auth_service.register(email, password)
+    status_code = 201 if result.status == VALIDATE_SUCCESS else 400
+    return make_response(result.get_json_result(), status_code)
 
-    if result.status == VALIDATE_SUCCESS:
-        return result.get_json_result(), 201
-    else:
-        return result.get_json_result(), 400
 
 # after login success, will return token. store in cookie for next use
 @app.route('/login', methods=['POST'])
 def login():
     data = request.json
-    identifier = data.get('identifier')  # Can be either email or user_id
+    identifier = data.get('identifier')
     password = data.get('password')
 
     if not identifier or not password:
-        return jsonify({'status': 'error', 'message': 'Identifier and password required'}), 400
+        return make_response(json.dumps({'status': 'error', 'message': 'Identifier and password required'}), 400)
 
-    # Login the user using AuthService
     result = auth_service.login(identifier, password)
+    status_code = 200 if result.status == VALIDATE_SUCCESS else 401
 
-    if result.status == VALIDATE_SUCCESS:
-        output = result.get_json_result(), 200
-    else:
-        output = result.get_json_result(), 401
-    
-    res = make_response(output)
-    res.set_cookie('token', result.token)
+    res = make_response(result.get_json_result(), status_code)
+    if result.token:
+        res.set_cookie('token', result.token)
     return res
 
 
@@ -68,15 +60,11 @@ def verify_token():
     token = request.json.get('token')
 
     if not token:
-        return jsonify({'status': 'error', 'message': 'Token is required'}), 400
+        return make_response(json.dumps({'status': 'error', 'message': 'Token is required'}), 400)
 
-    # Verify the token
     result = token_service.verify_token(token)
-
-    if result.status == VALIDATE_SUCCESS:
-        return result.get_json_result(), 200
-    else:
-        return result.get_json_result(), 401
+    status_code = 200 if result.status == VALIDATE_SUCCESS else 401
+    return make_response(result.get_json_result(), status_code)
 
 if __name__ == '__main__':
     app.run(debug=True)

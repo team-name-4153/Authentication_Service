@@ -7,3 +7,5 @@ test_scripts/__pycache__/test_token_service.cpython-312-pytest-8.3.3.pyc
 test_scripts/__pycache__/test_auth_service.cpython-312-pytest-8.3.3.pyc
 test_scripts/__pycache__/test_auth_service.cpython-312-pytest-8.3.3.pyc
 database/__pycache__/__init__.cpython-312.pyc
+services/__pycache__/auth_service.cpython-312.pyc
+services/__pycache__/token_service.cpython-312.pyc
