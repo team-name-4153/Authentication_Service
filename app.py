@@ -11,14 +11,14 @@ load_dotenv()
 app = Flask(__name__)
 CORS(app)
 
-# Secret key for JWT tokens
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'default_secret_key')
+app.config['RDS_DB_NAME'] = os.getenv('RDS_DB_NAME', 'auth_db')
 
 # Initialize RDS database connection
-db = rds_database(db_name='auth_db')
+db = rds_database(db_name=app.config['RDS_DB_NAME'])
 
 # initialize service
-auth_service = AuthService(db_name='auth_db', secret_key=app.config['SECRET_KEY'])
+auth_service = AuthService(db_name=app.config['RDS_DB_NAME'], secret_key=app.config['SECRET_KEY'])
 token_service = TokenService(secret_key=app.config['SECRET_KEY'])
 
 
