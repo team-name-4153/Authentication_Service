@@ -11,9 +11,10 @@ class AuthService:
     def __init__(self, db_name, secret_key):
         self.db = rds_database(db_name)
         self.token_service = TokenService(secret_key)
+        self.table_name = 'auth_db'
 
     def register(self, email, password):
-        user = self.db.query_data('users', conditions={'email': email})
+        user = self.db.query_data(self.table_name, conditions={'email': email})
         if user:
             return ValidateResult(
                 status=VALIDATE_ERROR,
@@ -30,7 +31,7 @@ class AuthService:
         new_user = User(user_id=user_id, email=email, password=hashed_password)
 
         # Insert the user into the database by converting to a dictionary
-        self.db.bulk_insert_data('users', [asdict(new_user)])
+        self.db.bulk_insert_data(self.table_name, [asdict(new_user)])
 
         return ValidateResult(
             status=VALIDATE_SUCCESS, 
@@ -39,7 +40,7 @@ class AuthService:
 
     def login(self, identifier, password):
         # Find user by either email or user_id
-        user = self.db.query_data('users', conditions={'email': identifier}) or self.db.query_data('users', conditions={'user_id': identifier})
+        user = self.db.query_data(self.table_name, conditions={'email': identifier}) or self.db.query_data(self.table_name, conditions={'user_id': identifier})
         
         if not user:
             return ValidateResult(status=VALIDATE_ERROR, message='User not found')
