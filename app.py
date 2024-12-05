@@ -9,6 +9,7 @@ load_dotenv()
 
 app = Flask(__name__)
 CORS(app)
+app.secret_key = os.getenv('SECRET_KEY', 'default_secret_key')
 
 COGNITO_DOMAIN = os.getenv('COGNITO_DOMAIN')
 COGNITO_CLIENT_ID = os.getenv('COGNITO_CLIENT_ID')
@@ -25,7 +26,6 @@ def login():
     """
     Redirects user to Cognito Hosted UI for login.
     """
-    app.logger.info("Redirecting to Cognito Hosted UI...")
     login_url = f"{COGNITO_DOMAIN}/oauth2/authorize"
     query_params = {
         "response_type": "code",
@@ -63,7 +63,7 @@ def auth_callback():
         if "error" in tokens:
             return jsonify({"error": tokens["error_description"]}), 400
 
-        res = make_response(jsonify({"message": "Login successful", "tokens": tokens}))
+        res = make_response(redirect(session.pop('redirect_after_login', '/')))
         res.set_cookie("access_token", tokens.get('access_token'))
         res.set_cookie("id_token", tokens.get('id_token'))
         res.set_cookie("refresh_token", tokens.get('refresh_token'))

@@ -1,6 +1,4 @@
-# auth_middleware.py
-
-from flask import request, jsonify, redirect, make_response, session
+from flask import Flask, request, jsonify, redirect, make_response, session
 from functools import wraps
 import requests
 import os
@@ -9,13 +7,14 @@ from jose.utils import base64url_decode
 from urllib.parse import urlencode
 import time
 
+# Middleware configuration
+AUTH_SERVICE_BASE_URL = "http://localhost:5001"
 COGNITO_DOMAIN = os.getenv('COGNITO_DOMAIN')
 COGNITO_CLIENT_ID = os.getenv('COGNITO_CLIENT_ID')
 COGNITO_CLIENT_SECRET = os.getenv('COGNITO_CLIENT_SECRET')
-COGNITO_REDIRECT_URI = os.getenv('COGNITO_REDIRECT_URI')
-
 TOKEN_URL = f"{COGNITO_DOMAIN}/oauth2/token"
 JWKS_URL = f"{COGNITO_DOMAIN}/.well-known/jwks.json"
+
 
 def validate_jwt_token(token):
     try:
@@ -45,6 +44,7 @@ def validate_jwt_token(token):
         print(f"Token validation error: {e}")
         return False
 
+
 def token_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
@@ -67,24 +67,17 @@ def token_required(f):
                 new_tokens = response.json()
 
                 if "error" in new_tokens:
-                    return jsonify({"error": "Failed to refresh token", "message": new_tokens["error_description"]}), 401
+                    raise Exception(new_tokens["error_description"])
 
                 res = make_response(f(*args, **kwargs))
                 res.set_cookie("access_token", new_tokens.get("access_token"))
-                res.set_cookie("id_token", new_tokens.get("id_token"))
                 return res
             except Exception as e:
                 print(f"Token refresh error: {e}")
-                return jsonify({"error": "Failed to refresh token", "details": str(e)}), 401
 
-        login_url = f"{COGNITO_DOMAIN}/oauth2/authorize"
-        query_params = {
-            "response_type": "code",
-            "client_id": COGNITO_CLIENT_ID,
-            "redirect_uri": COGNITO_REDIRECT_URI,
-            "scope": "email openid phone profile",
-            "state": request.path,
-        }
-        return redirect(f"{login_url}?{urlencode(query_params)}")
+        # Redirect to the login page on the authentication service
+        session['redirect_after_login'] = request.url
+        return redirect(f"{AUTH_SERVICE_BASE_URL}/login")
 
     return decorated_function
+

@@ -4,20 +4,16 @@ Authentication Service is in charge of registration, login and authentication to
 
 ## Environment: 
 ```
-# Database
-RDS_HOST = 'team-name-database.cb4uyq8si6lp.us-east-2.rds.amazonaws.com'
-RDS_PORT = 3306
-RDS_USER = 'admin' 
-RDS_PASSWORD = 'team-name-database'
-RDS_DB_NAME = 'authenticatoin_service'
+# AWS Cognito Configuration
+COGNITO_DOMAIN=https://us-east-2xa3953tkf.auth.us-east-2.amazoncognito.com
+COGNITO_CLIENT_ID=6nlbf44e9tj8ogqumhm0dd8imd
+COGNITO_CLIENT_SECRET=streaming_app
+COGNITO_REDIRECT_URI=http://localhost:5001/auth/callback
+COGNITO_USER_POOL_ID=<your_user_pool_id>    #can skip this
+COGNITO_REGION=us-east-2
 
-# JWT
-SECRET_KEY=our_jwt_secret_key
-JWT_REFRESH=3600 # auto refresh if time exceed
-JWT_EXPIRATION=7200  # token expiration time in seconds
-
-# Flask
-FLASK_DEBUG=True
+# Redirect Config
+SECRET_KEY=secure_random_key
 ```
 
 
