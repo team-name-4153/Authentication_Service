@@ -1,20 +1,17 @@
-
-from flask import Flask, request
-from middleware import AccessMiddleware
-
+import os
 from flask import Flask, jsonify
+from middleware import token_required
 
-from flask import jsonify
+app = Flask(__name__)
+app.secret_key = os.getenv('SECRET_KEY', 'default_secret_key')
 
-app = Flask('pseudo_app')
+@app.route('/protected', methods=['GET'])
+@token_required
+def protected_route():
+    """
+    Example protected route using the middleware.
+    """
+    return jsonify({"message": "You have accessed a protected route!"})
 
-app.wsgi_app = AccessMiddleware(app.wsgi_app)
-
-
-@app.route('/hello', methods=['GET'])
-def hello():
-    print("success")
-    return jsonify(message="Hello World!")
-
-if __name__ ==  '__main__':
-    app.run('127.0.0.1', '5000', debug=True)
+if __name__ == '__main__':
+    app.run(host='localhost', port=5002, debug=True)

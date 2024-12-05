@@ -1,70 +1,95 @@
-from flask import Flask, json, make_response, request, jsonify
+from flask import Flask, request, jsonify, redirect, make_response, session
 from flask_cors import CORS
-from services.auth_service import AuthService, VALIDATE_SUCCESS
-from services.token_service import TokenService
-from database.rds_database import rds_database
 import os
+import requests
 from dotenv import load_dotenv
+from urllib.parse import urlencode
 
 load_dotenv()
 
 app = Flask(__name__)
 CORS(app)
 
-app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'default_secret_key')
-app.config['RDS_DB_NAME'] = os.getenv('RDS_DB_NAME', 'auth_db')
+COGNITO_DOMAIN = os.getenv('COGNITO_DOMAIN')
+COGNITO_CLIENT_ID = os.getenv('COGNITO_CLIENT_ID')
+COGNITO_CLIENT_SECRET = os.getenv('COGNITO_CLIENT_SECRET')
+COGNITO_REDIRECT_URI = os.getenv('COGNITO_REDIRECT_URI')
 
-# Initialize RDS database connection
-db = rds_database(db_name=app.config['RDS_DB_NAME'])
+@app.route('/')
+def home():
+    # only for testing purpose
+    return "Welcome to the Authentication Service!"
 
-# initialize service
-auth_service = AuthService(db_name=app.config['RDS_DB_NAME'], secret_key=app.config['SECRET_KEY'])
-token_service = TokenService(secret_key=app.config['SECRET_KEY'])
-
-
-@app.route('/register', methods=['POST'])
-def register():
-    data = request.json
-    email = data.get('email')
-    password = data.get('password')
-
-    if not email or not password:
-        return make_response(json.dumps({'status': 'error', 'message': 'Email and password required'}), 400)
-    result = auth_service.register(email, password)
-    status_code = 201 if result.status == VALIDATE_SUCCESS else 400
-    return make_response(result.get_json_result(), status_code)
-
-
-# after login success, will return token. store in cookie for next use
-@app.route('/login', methods=['POST'])
+@app.route('/login')
 def login():
-    data = request.json
-    identifier = data.get('identifier')
-    password = data.get('password')
+    """
+    Redirects user to Cognito Hosted UI for login.
+    """
+    app.logger.info("Redirecting to Cognito Hosted UI...")
+    login_url = f"{COGNITO_DOMAIN}/oauth2/authorize"
+    query_params = {
+        "response_type": "code",
+        "client_id": COGNITO_CLIENT_ID,
+        "redirect_uri": COGNITO_REDIRECT_URI,
+        "scope": "email openid phone profile",
+    }
+    return redirect(f"{login_url}?{urlencode(query_params)}")
 
-    if not identifier or not password:
-        return make_response(json.dumps({'status': 'error', 'message': 'Identifier and password required'}), 400)
 
-    result = auth_service.login(identifier, password)
-    status_code = 200 if result.status == VALIDATE_SUCCESS else 401
+@app.route('/auth/callback')
+def auth_callback():
+    """
+    Handles Cognito's callback after login.
+    Exchanges authorization code for tokens.
+    """
+    code = request.args.get('code')
 
-    res = make_response(result.get_json_result(), status_code)
-    if result.token:
-        res.set_cookie('token', result.token)
+    if not code:
+        return jsonify({"error": "Authorization code is required"}), 400
+
+    token_payload = {
+        "grant_type": "authorization_code",
+        "client_id": COGNITO_CLIENT_ID,
+        "client_secret": COGNITO_CLIENT_SECRET,
+        "code": code,
+        "redirect_uri": COGNITO_REDIRECT_URI,
+    }
+    headers = {"Content-Type": "application/x-www-form-urlencoded"}
+
+    try:
+        token_response = requests.post(f"{COGNITO_DOMAIN}/oauth2/token", data=token_payload, headers=headers)
+        tokens = token_response.json()
+
+        if "error" in tokens:
+            return jsonify({"error": tokens["error_description"]}), 400
+
+        res = make_response(jsonify({"message": "Login successful", "tokens": tokens}))
+        res.set_cookie("access_token", tokens.get('access_token'))
+        res.set_cookie("id_token", tokens.get('id_token'))
+        res.set_cookie("refresh_token", tokens.get('refresh_token'))
+        return res
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/logout')
+def logout():
+    """
+    Logs the user out from Cognito and clears cookies.
+    """
+    logout_url = f"{COGNITO_DOMAIN}/logout"
+    query_params = {
+        "client_id": COGNITO_CLIENT_ID,
+        "logout_uri": COGNITO_REDIRECT_URI,
+    }
+    res = make_response(redirect(f"{logout_url}?{urlencode(query_params)}"))
+    res.delete_cookie("access_token")
+    res.delete_cookie("id_token")
+    res.delete_cookie("refresh_token")
     return res
 
 
-# whenever have new request. continue if got 'status': 'success'
-@app.route('/verify-token', methods=['POST'])
-def verify_token():
-    token = request.json.get('token')
-
-    if not token:
-        return make_response(json.dumps({'status': 'error', 'message': 'Token is required'}), 400)
-
-    result = token_service.verify_token(token)
-    status_code = 200 if result.status == VALIDATE_SUCCESS else 401
-    return make_response(result.get_json_result(), status_code)
-
 if __name__ == '__main__':
-    app.run(debug=True)
+    # host and port for debug only
+    app.run(host='localhost', port=5001, debug=True)
