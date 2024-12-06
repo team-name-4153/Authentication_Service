@@ -9,7 +9,7 @@ from jose.utils import base64url_decode
 import time
 
 # Middleware configuration
-AUTH_SERVICE_BASE_URL = "http://localhost:5001"
+AUTH_SERVICE_BASE_URL = os.getenv('AUTH_SERVICE_BASE_URL')
 COGNITO_DOMAIN = os.getenv('COGNITO_DOMAIN')
 COGNITO_CLIENT_ID = os.getenv('COGNITO_CLIENT_ID')
 COGNITO_CLIENT_SECRET = os.getenv('COGNITO_CLIENT_SECRET')
