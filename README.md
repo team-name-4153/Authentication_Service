@@ -8,11 +8,11 @@ Authentication Service is in charge of registration, login and authentication to
 COGNITO_DOMAIN=https://us-east-2xa3953tkf.auth.us-east-2.amazoncognito.com
 COGNITO_CLIENT_ID=6nlbf44e9tj8ogqumhm0dd8imd
 COGNITO_CLIENT_SECRET=streaming_app
-COGNITO_REDIRECT_URI=http://localhost:5001/auth/callback
-COGNITO_USER_POOL_ID=<your_user_pool_id>    #can skip this
+COGNITO_REDIRECT_URI=https://zt9vvpjd3k.execute-api.us-east-2.amazonaws.com/auth/callback
 COGNITO_REGION=us-east-2
 
 # Redirect Config
+AUTH_SERVICE_BASE_URL=https://zt9vvpjd3k.execute-api.us-east-2.amazonaws.com/
 SECRET_KEY=secure_random_key
 ```
 

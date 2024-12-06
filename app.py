@@ -4,6 +4,7 @@ import os
 import requests
 from dotenv import load_dotenv
 from urllib.parse import urlencode
+import jwt
 
 load_dotenv()
 
@@ -26,6 +27,7 @@ def login():
     """
     Redirects user to Cognito Hosted UI for login.
     """
+    app.logger.info("navigate to authentication_service /login")
     login_url = f"{COGNITO_DOMAIN}/oauth2/authorize"
     query_params = {
         "response_type": "code",
@@ -40,8 +42,9 @@ def login():
 def auth_callback():
     """
     Handles Cognito's callback after login.
-    Exchanges authorization code for tokens.
+    Exchanges authorization code for tokens and packs user information.
     """
+    app.logger.info("navigate to authentication_service /auth/callback")
     code = request.args.get('code')
 
     if not code:
@@ -63,10 +66,21 @@ def auth_callback():
         if "error" in tokens:
             return jsonify({"error": tokens["error_description"]}), 400
 
+        id_token = tokens.get('id_token')
+        claims = jwt.decode(id_token, algorithms=["RS256"], options={"verify_signature": False})
+
+        user_info = {
+            "user_id": claims.get("sub"),
+            "email": claims.get("email"),
+            "preferred_name": claims.get("preferred_username", ""),
+            "photo_url": claims.get("picture", ""),
+        }
+
         res = make_response(redirect(session.pop('redirect_after_login', '/')))
         res.set_cookie("access_token", tokens.get('access_token'))
-        res.set_cookie("id_token", tokens.get('id_token'))
+        res.set_cookie("id_token", id_token)
         res.set_cookie("refresh_token", tokens.get('refresh_token'))
+        res.set_cookie("user_info", jsonify(user_info).data.decode())  # Store user info in cookies
         return res
 
     except Exception as e:

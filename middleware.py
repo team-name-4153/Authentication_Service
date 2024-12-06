@@ -1,10 +1,11 @@
-from flask import Flask, request, jsonify, redirect, make_response, session
+# middleware.py
+
+from flask import request, redirect, make_response, session
 from functools import wraps
 import requests
 import os
 from jose import jwt, jwk
 from jose.utils import base64url_decode
-from urllib.parse import urlencode
 import time
 
 # Middleware configuration
@@ -20,39 +21,47 @@ def validate_jwt_token(token):
     try:
         jwks_response = requests.get(JWKS_URL).json()
         headers = jwt.get_unverified_header(token)
-        kid = headers.get('kid')
-        key = next(k for k in jwks_response['keys'] if k['kid'] == kid)
+        kid = headers.get("kid")
+        key = next(k for k in jwks_response["keys"] if k["kid"] == kid)
         public_key = jwk.construct(key)
 
-        message, encoded_signature = token.rsplit('.', 1)
+        # Verify the token
+        message, encoded_signature = token.rsplit(".", 1)
         decoded_signature = base64url_decode(encoded_signature.encode())
         if not public_key.verify(message.encode(), decoded_signature):
-            return False
+            return False, None
 
         claims = jwt.decode(
             token,
             key=public_key,
-            algorithms=['RS256'],
-            audience=COGNITO_CLIENT_ID
+            algorithms=["RS256"],
+            audience=COGNITO_CLIENT_ID,
         )
+        if claims.get("exp", 0) < int(time.time()):
+            return False, None
 
-        if claims['exp'] < int(time.time()):
-            return False
-
-        return True
+        return True, claims
     except Exception as e:
         print(f"Token validation error: {e}")
-        return False
+        return False, None
 
 
 def token_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
-        access_token = request.cookies.get('access_token')
-        refresh_token = request.cookies.get('refresh_token')
+        access_token = request.cookies.get("access_token")
+        refresh_token = request.cookies.get("refresh_token")
 
-        if access_token and validate_jwt_token(access_token):
-            return f(*args, **kwargs)
+        if access_token:
+            valid, claims = validate_jwt_token(access_token)
+            if valid:
+                # attach user info to the request
+                request.user_info = {
+                    "user_id": claims.get("sub"),
+                    "email": claims.get("email"),
+                    "photo_url": claims.get("picture"),
+                }
+                return f(*args, **kwargs)
 
         if refresh_token:
             try:
@@ -71,6 +80,8 @@ def token_required(f):
 
                 res = make_response(f(*args, **kwargs))
                 res.set_cookie("access_token", new_tokens.get("access_token"))
+                # res.set_cookie("refresh_token", new_tokens.get("refresh_token"))
+                # res.set_cookie("id_token", new_tokens.get("id_token"))
                 return res
             except Exception as e:
                 print(f"Token refresh error: {e}")
