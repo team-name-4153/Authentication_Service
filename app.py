@@ -1,14 +1,16 @@
-from flask import Flask, request, jsonify, redirect, make_response, session
+from flask import Flask, json, request, jsonify, redirect, make_response, session
 from flask_cors import CORS
 import os
 import requests
 from dotenv import load_dotenv
-from urllib.parse import urlencode
 import jwt
+import logging
+from urllib.parse import urlencode, quote, unquote
 
 load_dotenv()
 
 app = Flask(__name__)
+app.logger.setLevel(logging.INFO)
 CORS(app)
 app.secret_key = os.getenv('SECRET_KEY', 'default_secret_key')
 
@@ -29,11 +31,18 @@ def login():
     """
     app.logger.info("navigate to authentication_service /login")
     login_url = f"{COGNITO_DOMAIN}/oauth2/authorize"
+    redirect_after_login = request.args.get("redirect_after_login", "/")
+    state = {
+        "redirect_after_login": redirect_after_login
+    }
+    state_encoded = quote(json.dumps(state))
+
     query_params = {
         "response_type": "code",
         "client_id": COGNITO_CLIENT_ID,
         "redirect_uri": COGNITO_REDIRECT_URI,
         "scope": "email openid phone profile",
+        "state": state_encoded,
     }
     return redirect(f"{login_url}?{urlencode(query_params)}")
 
@@ -46,6 +55,12 @@ def auth_callback():
     """
     app.logger.info("navigate to authentication_service /auth/callback")
     code = request.args.get('code')
+    state_encoded = request.args.get("state")
+    if state_encoded:
+        state = json.loads(unquote(state_encoded))
+        redirect_after_login = state.get("redirect_after_login", "/")
+    else:
+        redirect_after_login = "/"
 
     if not code:
         return jsonify({"error": "Authorization code is required"}), 400
@@ -76,7 +91,8 @@ def auth_callback():
             "photo_url": claims.get("picture", ""),
         }
 
-        res = make_response(redirect(session.pop('redirect_after_login', '/')))
+        app.logger.info('go back to path: '+redirect_after_login)
+        res = make_response(redirect(redirect_after_login))
         res.set_cookie("access_token", tokens.get('access_token'))
         res.set_cookie("id_token", id_token)
         res.set_cookie("refresh_token", tokens.get('refresh_token'))

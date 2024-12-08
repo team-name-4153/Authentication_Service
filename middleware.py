@@ -87,8 +87,9 @@ def token_required(f):
                 print(f"Token refresh error: {e}")
 
         # Redirect to the login page on the authentication service
-        session['redirect_after_login'] = request.url
-        return redirect(f"{AUTH_SERVICE_BASE_URL}/login")
+        redirect_url = request.url
+        print(f"{AUTH_SERVICE_BASE_URL}/login?redirect_after_login={redirect_url}")
+        return redirect(f"{AUTH_SERVICE_BASE_URL}/login?redirect_after_login={redirect_url}")
 
     return decorated_function
 
