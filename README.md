@@ -21,11 +21,14 @@ ID token expiration: 60 minutes
 COGNITO_DOMAIN=https://us-east-2xa3953tkf.auth.us-east-2.amazoncognito.com
 COGNITO_CLIENT_ID=6nlbf44e9tj8ogqumhm0dd8imd
 COGNITO_CLIENT_SECRET=streaming_app
-COGNITO_REDIRECT_URI=https://zt9vvpjd3k.execute-api.us-east-2.amazonaws.com/auth/callback
+# COGNITO_REDIRECT_URI=https://zt9vvpjd3k.execute-api.us-east-2.amazonaws.com/auth/callback
+COGNITO_REDIRECT_URI=http://localhost:5001/auth/callback
 COGNITO_REGION=us-east-2
+USER_POOL_ID=us-east-2_XA3953tKF
 
 # Redirect Config
-AUTH_SERVICE_BASE_URL=https://zt9vvpjd3k.execute-api.us-east-2.amazonaws.com/auth
+# AUTH_SERVICE_BASE_URL=https://zt9vvpjd3k.execute-api.us-east-2.amazonaws.com/auth
+AUTH_SERVICE_BASE_URL=http://localhost:5001/
 SECRET_KEY=secure_random_key
 ```
 

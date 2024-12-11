@@ -1,7 +1,7 @@
 # pseudo_app.py
 
 import os
-from flask import Flask, jsonify, request
+from flask import Flask, json, jsonify, request
 from middleware import token_required
 
 app = Flask(__name__)
@@ -15,13 +15,14 @@ def protected_route():
     Example protected route using the middleware.
     """
     user_info_cookie = request.cookies.get('user_info')
-    user_info = {}
-    if user_info_cookie:
-        user_info = jsonify(user_info_cookie).get_json()  # Decode user info from cookie
+    user_info = json.loads(user_info_cookie) if user_info_cookie else {}
 
     return jsonify({
         "message": "You have accessed a protected route!",
-        "user_info": user_info,
+        "email": user_info.get("email", ""),
+        "photo_url": user_info.get("photo_url", ""),
+        "preferred_name": user_info.get("preferred_name", ""),
+        "user_id": user_info.get("user_id", ""),
     })
 
 if __name__ == '__main__':
