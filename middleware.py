@@ -1,6 +1,6 @@
 # middleware.py
 
-from flask import request, redirect, make_response, session
+from flask import jsonify, request, redirect, make_response, session
 from functools import wraps
 import requests
 import os
@@ -99,10 +99,7 @@ def token_required(f):
             except Exception as e:
                 print(f"Token refresh error: {e}")
 
-        # Redirect to the login page on the authentication service
-        redirect_url = request.url
-        print(f"redirect to: {AUTH_SERVICE_BASE_URL}/login?redirect_after_login={redirect_url}")
-        return redirect(f"{AUTH_SERVICE_BASE_URL}/login?redirect_after_login={redirect_url}")
+        return jsonify({"error": "not authorized"}), 401
 
     return decorated_function
 

@@ -1,17 +1,18 @@
 from flask import Flask, json, request, jsonify, redirect, make_response
 import os
+from flask_cors import CORS
 import requests
 from dotenv import load_dotenv
 import jwt
 import logging
 from urllib.parse import urlencode, quote, unquote
-from dotenv import load_dotenv
 from middleware import token_required, validate_jwt_token
 
 # Load environment variables
 load_dotenv()
 
 app = Flask(__name__)
+CORS(app)
 app.logger.setLevel(logging.INFO)
 app.secret_key = os.getenv('SECRET_KEY', 'default_secret_key')
 
@@ -25,22 +26,6 @@ COGNITO_REGION = os.getenv('COGNITO_REGION')
 USER_POOL_ID = os.getenv('USER_POOL_ID')
 TOKEN_URL = f"https://cognito-idp.{COGNITO_REGION}.amazonaws.com/{USER_POOL_ID}/oauth2/token"
 
-# Add CORS headers
-def add_cors_headers(response):
-    response.headers["Access-Control-Allow-Origin"] = "http://localhost:3000"
-    response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS, PUT, DELETE"
-    response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
-    response.headers["Access-Control-Allow-Credentials"] = "true"
-    return response
-
-@app.after_request
-def apply_cors(response):
-    return add_cors_headers(response)
-
-@app.route('/<path:path>', methods=['OPTIONS'])
-def options(path):
-    response = make_response()
-    return add_cors_headers(response)
 
 @app.route('/')
 def home():
@@ -54,7 +39,7 @@ def login():
     """
     app.logger.info("navigate to authentication_service /login")
     login_url = f"{COGNITO_DOMAIN}/oauth2/authorize"
-    redirect_after_login = request.args.get("redirect_after_login", "/")
+    redirect_after_login = request.args.get("redirect_after_login", "/userHome")
     state = {
         "redirect_after_login": redirect_after_login
     }
@@ -119,7 +104,7 @@ def auth_callback():
         res.set_cookie("access_token", tokens.get('access_token'))
         res.set_cookie("id_token", id_token)
         res.set_cookie("refresh_token", tokens.get('refresh_token'))
-        res.set_cookie("user_info", jsonify(user_info).data.decode())  # Store user info in cookies
+        res.set_cookie("user_info", json.dumps(user_info))  # Store user info in cookies
         return res
 
     except Exception as e:
@@ -140,6 +125,7 @@ def logout():
     res.delete_cookie("access_token")
     res.delete_cookie("id_token")
     res.delete_cookie("refresh_token")
+    res.delete_cookie("user_info")
     return res
 
 @app.route('/auth/status', methods=["GET"])
@@ -176,8 +162,15 @@ def auth_status():
 @app.route('/userHome', methods=["GET"])
 @token_required
 def user_home():
-    user_info_cookie = request.cookies.get('user_info')
-    user_info = json.loads(user_info_cookie) if user_info_cookie else {}
+    """
+    Protected route for authenticated users.
+    """
+    user_info_cookie = request.cookies.get("user_info")
+    if user_info_cookie:
+        user_info = json.loads(user_info_cookie.replace('\\054', ',').replace('\\012', '\n').replace('\\', ''))
+    else:
+        return jsonify({"error": "user info not available"}), 401
+
     return jsonify({
         "message": "Welcome!",
         "email": user_info.get("email", ""),
