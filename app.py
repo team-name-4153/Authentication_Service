@@ -1,18 +1,22 @@
-from flask import Flask, json, request, jsonify, redirect, make_response
+from flask import Flask, json, request, jsonify, redirect, make_response, g
 import os
+import json as js
 from flask_cors import CORS
 import requests
 from dotenv import load_dotenv
 import jwt
 import logging
 from urllib.parse import urlencode, quote, unquote
+
+import urllib
 from middleware import token_required, validate_jwt_token
 
 # Load environment variables
 load_dotenv()
 
 app = Flask(__name__)
-CORS(app)
+CORS(app, supports_credentials=True, resources={r"/*": {"origins": "http://localhost:3000"}})
+
 app.logger.setLevel(logging.INFO)
 app.secret_key = os.getenv('SECRET_KEY', 'default_secret_key')
 
@@ -26,6 +30,7 @@ COGNITO_REGION = os.getenv('COGNITO_REGION')
 USER_POOL_ID = os.getenv('USER_POOL_ID')
 TOKEN_URL = f"https://cognito-idp.{COGNITO_REGION}.amazonaws.com/{USER_POOL_ID}/oauth2/token"
 
+global_credentials = {}
 
 @app.route('/')
 def home():
@@ -59,9 +64,10 @@ def login():
 def auth_callback():
     """
     Handles Cognito's callback after login.
-    Exchanges authorization code for tokens and packs user information.
+    Exchanges authorization code for tokens and sends data to the parent or sets cookies directly.
     """
     app.logger.info("navigate to authentication_service /auth/callback")
+
     code = request.args.get('code')
     state_encoded = request.args.get("state")
     if state_encoded:
@@ -99,15 +105,28 @@ def auth_callback():
             "photo_url": claims.get("picture", ""),
         }
 
-        app.logger.info('go back to path: ' + redirect_after_login)
-        res = make_response(redirect(redirect_after_login))
-        res.set_cookie("access_token", tokens.get('access_token'))
-        res.set_cookie("id_token", id_token)
-        res.set_cookie("refresh_token", tokens.get('refresh_token'))
-        res.set_cookie("user_info", json.dumps(user_info))  # Store user info in cookies
+        app.logger.info("[/auth/callback] all data prepared")
+
+        # Store credentials in the session
+
+        global global_credentials
+        safe_user_info = json.dumps(user_info).replace('"', '\\"')
+        global_credentials = {
+            "user_info": user_info,
+            "access_token": tokens.get('access_token'),
+            "id_token": id_token,
+            "refresh_token": tokens.get('refresh_token'),
+        }
+
+        res = make_response(redirect('/userHome'))
+        res.set_cookie('access_token', tokens.get('access_token'))
+        res.set_cookie('id_token', id_token)
+        res.set_cookie('refresh_token', tokens.get('refresh_token'))
+        res.set_cookie('user_info', safe_user_info)
         return res
 
     except Exception as e:
+        app.logger.error(f"Error during auth callback: {e}")
         return jsonify({"error": str(e)}), 500
 
 
@@ -127,6 +146,30 @@ def logout():
     res.delete_cookie("refresh_token")
     res.delete_cookie("user_info")
     return res
+
+@app.route('/auth/getcredential', methods=['GET'])
+def get_credential():
+    global global_credentials
+    app.logger.info("get to /auth/getcredential")
+    user_info = global_credentials.get("user_info")
+    access_token = global_credentials.get("access_token")
+    id_token = global_credentials.get("id_token")
+    refresh_token = global_credentials.get("refresh_token")
+    global_credentials = {}
+
+    if not user_info or not access_token:
+        return jsonify({"error": "Not authenticated"}), 401
+
+    response_data = {
+        "user_info": user_info,
+        "access_token": access_token,
+        "id_token": id_token,
+        "refresh_token": refresh_token,
+    }
+    
+    app.logger.info("/auth/getcredential response 200")
+    return jsonify(response_data), 200
+
 
 @app.route('/auth/status', methods=["GET"])
 def auth_status():
@@ -165,19 +208,34 @@ def user_home():
     """
     Protected route for authenticated users.
     """
-    user_info_cookie = request.cookies.get("user_info")
-    if user_info_cookie:
-        user_info = json.loads(user_info_cookie.replace('\\054', ',').replace('\\012', '\n').replace('\\', ''))
-    else:
-        return jsonify({"error": "user info not available"}), 401
+    app.logger.info("get to /userHome")
+    user_info_cookie = request.cookies.get('user_info')
 
-    return jsonify({
-        "message": "Welcome!",
-        "email": user_info.get("email", ""),
-        "photo_url": user_info.get("photo_url", ""),
-        "user_id": user_info.get("user_id", ""),
-        "preferred_name": user_info.get("preferred_name", ""),
-    })
+    app.logger.info(f"Raw user_info_cookie: {user_info_cookie}")
+
+    if not user_info_cookie:
+        return jsonify({"error": "User info not available"}), 401
+
+    try:
+        decoded_cookie = urllib.parse.unquote(user_info_cookie)
+        cleaned_cookie = decoded_cookie.strip('"').replace('\\054', ',').replace('\\012', '\n').replace('\\', '')
+
+        start_index = cleaned_cookie.find('{')
+        end_index = cleaned_cookie.rfind('}')
+        if start_index != -1 and end_index != -1:
+            cleaned_cookie = cleaned_cookie[start_index:end_index + 1]
+        user_info = json.loads(cleaned_cookie)
+        return jsonify({
+            "message": "Welcome!",
+            "email": user_info.get("email", ""),
+            "photo_url": user_info.get("photo_url", ""),
+            "user_id": user_info.get("user_id", ""),
+            "preferred_name": user_info.get("preferred_name", ""),
+        })
+    except js.JSONDecodeError as e:
+        app.logger.error(f"Error decoding user_info_cookie: {e}")
+        return jsonify({"error": "Invalid user info format"}), 400
 
 if __name__ == '__main__':
-    app.run(host='localhost', port=5001, debug=True)
+    app.run(host='0.0.0.0', port=5001, debug=True)
+

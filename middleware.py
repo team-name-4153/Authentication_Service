@@ -62,14 +62,8 @@ def token_required(f):
         refresh_token = request.cookies.get("refresh_token")
 
         if access_token:
-            valid, claims = validate_jwt_token(access_token)
+            valid, _ = validate_jwt_token(access_token)
             if valid:
-                # attach user info to the request
-                request.user_info = {
-                    "user_id": claims.get("sub"),
-                    "email": claims.get("email"),
-                    "photo_url": claims.get("picture"),
-                }
                 return f(*args, **kwargs)
 
         if refresh_token:
@@ -92,7 +86,7 @@ def token_required(f):
                 res.set_cookie("access_token", new_tokens.get('access_token'))
                 # res.set_cookie("refresh_token", new_tokens.get('refresh_token'))
                 res.set_cookie("id_token", new_tokens.get('id_token'))
-                valid, claims = validate_jwt_token(new_tokens.get('access_token'))
+                valid, _ = validate_jwt_token(new_tokens.get('access_token'))
                 if valid:
                     print("automatic token refresh done")
                     return res
