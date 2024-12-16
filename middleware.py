@@ -1,6 +1,6 @@
 # middleware.py
 
-from flask import jsonify, request, redirect, make_response, session
+from flask import jsonify, request, redirect, make_response, session, current_app
 from functools import wraps
 import requests
 import os
@@ -54,16 +54,18 @@ def validate_jwt_token(token):
         print(f"Token validation error: {e}")
         return False, None
 
-
 def token_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
+        current_app.logger.info("enter middleware protection. access token required. ")
+
         access_token = request.cookies.get("access_token")
         refresh_token = request.cookies.get("refresh_token")
 
         if access_token:
             valid, _ = validate_jwt_token(access_token)
             if valid:
+                current_app.logger.info("token valid.")
                 return f(*args, **kwargs)
 
         if refresh_token:
@@ -84,7 +86,7 @@ def token_required(f):
 
                 res = make_response(f(*args, **kwargs))
                 res.set_cookie("access_token", new_tokens.get('access_token'))
-                # res.set_cookie("refresh_token", new_tokens.get('refresh_token'))
+                res.set_cookie("refresh_token", new_tokens.get('refresh_token'))
                 res.set_cookie("id_token", new_tokens.get('id_token'))
                 valid, _ = validate_jwt_token(new_tokens.get('access_token'))
                 if valid:
